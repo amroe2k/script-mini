@@ -9,15 +9,15 @@ class Ps1 extends BaseController
      * Accessible via: GET /scripts/{name}.ps1
      * Usage  : irm http://yourdomain.com/scripts/{name}.ps1 | iex
      */
-    public function serve(string $name): \CodeIgniter\HTTP\Response
+    public function serve(string $name, string $ext = 'ps1'): \CodeIgniter\HTTP\Response
     {
-        $file = APPPATH . 'Scripts/' . $name . '.ps1';
+        $file = APPPATH . 'Scripts/' . $name . '.' . $ext;
 
         if (! is_file($file)) {
             return $this->response
                 ->setStatusCode(404)
                 ->setContentType('text/plain')
-                ->setBody("# Script '$name.ps1' tidak ditemukan.");
+                ->setBody("# Script '$name.$ext' tidak ditemukan.");
         }
 
         return $this->response

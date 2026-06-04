@@ -2,13 +2,13 @@
 
 <?= $this->section('content') ?>
 
-<?php $fileCount = count($ps1Files); ?>
+<?php $fileCount = count($groupedFiles); ?>
 
 <!-- Page header -->
 <div class="page-header">
   <div>
-    <h2>Hosted PS1 Files</h2>
-    <p class="page-subtitle"><?= $fileCount ?> file tersedia di <code>app/Scripts/</code></p>
+    <h2>Hosted Scripts</h2>
+    <p class="page-subtitle"><?= $fileCount ?> project tersedia di <code>app/Scripts/</code></p>
   </div>
   <button class="btn btn-primary" id="btn-show-upload" onclick="toggleUpload()">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -32,7 +32,7 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
     </div>
     <div>
-      <div class="fsc-value"><?= $fileCount > 0 ? number_format(array_sum(array_column($ps1Files, 'size')) / 1024, 1) : '0' ?> KB</div>
+      <div class="fsc-value"><?= $fileCount > 0 ? number_format(array_sum(array_column($groupedFiles, 'size')) / 1024, 1) : '0' ?> KB</div>
       <div class="fsc-label">Total Ukuran</div>
     </div>
   </div>
@@ -41,7 +41,7 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
     </div>
     <div>
-      <div class="fsc-value">/scripts/*.ps1</div>
+      <div class="fsc-value">/scripts/*.ps1 | .sh</div>
       <div class="fsc-label">URL Pattern</div>
     </div>
   </div>
@@ -62,10 +62,10 @@
       <div class="drop-zone-icon">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </div>
-      <span class="drop-title" id="drop-title">Drag & drop file <strong>.ps1</strong> di sini</span>
+      <span class="drop-title" id="drop-title">Drag & drop file <strong>.ps1 atau .sh</strong> di sini</span>
       <span class="drop-sub">atau <u>klik untuk pilih file</u> dari komputer</span>
-      <span class="drop-hint">Hanya .ps1 • Overwrite otomatis jika nama sama</span>
-      <input type="file" name="script_file" id="script_file" accept=".ps1" required>
+      <span class="drop-hint">Hanya .ps1, .sh • Overwrite otomatis jika nama sama</span>
+      <input type="file" name="script_file" id="script_file" accept=".ps1,.sh" required>
     </label>
     <div class="upload-confirm" id="upload-confirm">
       <div class="confirm-file">
@@ -91,46 +91,66 @@
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
     </div>
     <h3>Belum ada file</h3>
-    <p>Upload file .ps1 pertama Anda menggunakan tombol di atas.</p>
+    <p>Upload file .ps1 atau .sh pertama Anda menggunakan tombol di atas.</p>
   </div>
 <?php else: ?>
   <div class="files-grid">
-    <?php foreach ($ps1Files as $f):
-      $cmdPs  = "irm {$f['url']} | iex";
-      $cmdCmd = "powershell -ExecutionPolicy Bypass -Command \"irm '{$f['url']}' | iex\"";
-      $cmdLinux = "curl -sL {$f['url']} | pwsh";
+    <?php foreach ($groupedFiles as $g):
+      if ($g['ps1']) {
+        $cmdPs  = "irm {$g['ps1']['url']} | iex";
+        $cmdCmd = "powershell -ExecutionPolicy Bypass -Command \"irm '{$g['ps1']['url']}' | iex\"";
+        $mainUrl = $g['ps1']['url'];
+      } else {
+        $cmdPs = "curl -sL {$g['sh']['url']} | bash";
+        $cmdCmd = "";
+        $mainUrl = $g['sh']['url'];
+      }
+      
+      if ($g['sh']) {
+        $cmdLinux = "curl -sL {$g['sh']['url']} | bash";
+      } elseif ($g['ps1']) {
+        $cmdLinux = "curl -sL {$g['ps1']['url']} | pwsh";
+      } else {
+        $cmdLinux = "";
+      }
     ?>
       <div class="file-card">
-        <?php $cardId = md5($f['url']); ?>
+        <?php $cardId = md5($g['name']); ?>
         <!-- Header: icon + nama + meta -->
         <div class="file-card-top">
           <div class="file-card-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="10 13 8 15 10 17"/><polyline points="14 13 16 15 14 17"/></svg>
           </div>
           <div class="file-card-meta" style="flex: 1;">
-            <div class="file-card-name"><?= esc($f['name']) ?></div>
+            <div class="file-card-name"><?= esc($g['name']) ?></div>
             <div class="file-card-info">
-              <span><?= number_format($f['size'] / 1024, 1) ?> KB</span>
+              <span><?= number_format($g['size'] / 1024, 1) ?> KB</span>
               <span class="meta-sep">•</span>
-              <span><?= esc($f['modified']) ?></span>
+              <span><?= esc($g['modified']) ?></span>
+              <span class="meta-sep">•</span>
+              <?php if($g['ps1']): ?><span class="badge-sm badge-ps">.ps1</span><?php endif; ?>
+              <?php if($g['sh']): ?><span class="badge-sm badge-linux">.sh</span><?php endif; ?>
             </div>
           </div>
-          <label class="linux-toggle-wrap-sm" title="Opsi Linux">
-            <span class="linux-toggle-label-sm">Linux</span>
-            <div class="toggle-switch-sm">
-              <input type="checkbox" onchange="toggleCardLinux(this, '<?= $cardId ?>')">
-              <span class="slider-sm"></span>
-            </div>
-          </label>
         </div>
 
         <!-- URL -->
         <div class="cmd-row cmd-row-url">
           <span class="cmd-badge badge-url">URL</span>
-          <code class="cmd-text"><?= esc($f['url']) ?></code>
-          <button class="btn-copy-cmd" data-copy="<?= esc($f['url']) ?>" title="Salin URL">
+          <code class="cmd-text"><?= esc($mainUrl) ?></code>
+          <button class="btn-copy-cmd" data-copy="<?= esc($mainUrl) ?>" title="Salin URL">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; padding: 0 4px;">
+          <label class="linux-toggle-wrap-sm" title="Opsi Linux">
+            <span class="linux-toggle-label-sm">Linux Option</span>
+            <div class="toggle-switch-sm">
+              <input type="checkbox" onchange="toggleCardLinux(this, '<?= $cardId ?>')">
+              <span class="slider-sm"></span>
+            </div>
+          </label>
         </div>
 
         <!-- PowerShell install command -->
@@ -162,29 +182,44 @@
 
         <!-- Actions -->
         <div class="file-card-actions">
-          <button class="btn btn-secondary btn-sm btn-preview"
-                  data-url="<?= esc($f['url']) ?>"
-                  data-name="<?= esc($f['name']) ?>"
-                  onclick="openPreview(this)">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            Preview
-          </button>
-          <form method="POST" action="/admin/scripts/files/<?= esc(urlencode($f['name'])) ?>/generate"
-                onsubmit="return confirmGenerate(this, '<?= esc($f['name']) ?>')">
-            <?= csrf_field() ?>
-            <button type="submit" class="btn btn-generate btn-sm">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Generate
+          <div class="file-card-previews">
+            <?php if($g['ps1']): ?>
+            <button class="btn btn-secondary btn-sm btn-preview"
+                    data-url="<?= esc($g['ps1']['url']) ?>"
+                    data-name="<?= esc($g['ps1']['filename']) ?>"
+                    onclick="openPreview(this)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              Preview PS1
             </button>
-          </form>
-          <form method="POST" action="/admin/scripts/files/<?= esc(urlencode($f['name'])) ?>/delete"
-                onsubmit="return confirmDeleteFile(this, '<?= esc($f['name']) ?>')">
-            <?= csrf_field() ?>
-            <button type="submit" class="btn btn-danger btn-sm">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-              Hapus
+            <?php endif; ?>
+            <?php if($g['sh']): ?>
+            <button class="btn btn-secondary btn-sm btn-preview"
+                    data-url="<?= esc($g['sh']['url']) ?>"
+                    data-name="<?= esc($g['sh']['filename']) ?>"
+                    onclick="openPreview(this)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              Preview SH
             </button>
-          </form>
+            <?php endif; ?>
+          </div>
+          <div class="file-card-ops">
+            <form method="POST" action="/admin/scripts/files/<?= esc(urlencode($g['ps1'] ? $g['ps1']['filename'] : $g['sh']['filename'])) ?>/generate"
+                  onsubmit="return confirmGenerate(this, '<?= esc($g['name']) ?>')">
+              <?= csrf_field() ?>
+              <button type="submit" class="btn btn-generate btn-sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Generate
+              </button>
+            </form>
+            <form method="POST" action="/admin/scripts/files/<?= esc(urlencode($g['name'])) ?>/delete"
+                  onsubmit="return confirmDeleteFile(this, '<?= esc($g['name']) ?>')">
+              <?= csrf_field() ?>
+              <button type="submit" class="btn btn-danger btn-sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                Hapus
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     <?php endforeach; ?>
@@ -447,12 +482,56 @@
   .btn-copy-cmd.copied { color: var(--success); }
 
   .file-card-actions {
-    display: flex; gap: 8px; align-items: center;
-    border-top: 1px solid var(--border); padding-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
   }
-  .file-card-actions .btn { flex: 1; justify-content: center; }
-  .file-card-actions form { flex: 1; margin: 0; }
-  .file-card-actions form .btn { width: 100%; }
+  .file-card-previews,
+  .file-card-ops {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+  .file-card-previews .btn,
+  .file-card-ops .btn {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .file-card-ops form {
+    flex: 1;
+    margin: 0;
+    display: flex;
+  }
+  .file-card-ops form .btn {
+    width: 100%;
+  }
+  .btn-preview {
+    background: rgba(99, 102, 241, 0.06) !important;
+    border: 1px solid rgba(99, 102, 241, 0.15) !important;
+    color: #a5b4fc !important;
+  }
+  .btn-preview:hover {
+    background: rgba(99, 102, 241, 0.15) !important;
+    border-color: rgba(99, 102, 241, 0.3) !important;
+    color: #c7d2fe !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  }
+  [data-theme="light"] .btn-preview {
+    background: rgba(79, 70, 229, 0.05) !important;
+    border-color: rgba(79, 70, 229, 0.15) !important;
+    color: #4f46e5 !important;
+  }
+  [data-theme="light"] .btn-preview:hover {
+    background: rgba(79, 70, 229, 0.10) !important;
+    border-color: rgba(79, 70, 229, 0.25) !important;
+    color: #4338ca !important;
+  }
 
   .btn-generate {
     background: rgba(16,185,129,0.07);

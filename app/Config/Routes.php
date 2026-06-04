@@ -5,7 +5,8 @@ use CodeIgniter\Router\RouteCollection;
 /** @var RouteCollection $routes */
 $routes->get('/', 'Home::index');
 
-$routes->get('scripts/(:segment)\.ps1', 'Ps1::serve/$1');
+$routes->get('scripts/(:segment)\.ps1', 'Ps1::serve/$1/ps1');
+$routes->get('scripts/(:segment)\.sh', 'Ps1::serve/$1/sh');
 $routes->get('scripts/(:segment)', 'Script::detail/$1');
 
 // Admin Routes

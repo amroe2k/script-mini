@@ -26,20 +26,39 @@ class Scripts extends BaseController
     public function files()
     {
         $scriptsDir = APPPATH . 'Scripts' . DIRECTORY_SEPARATOR;
-        $ps1Files = [];
+        $groupedFiles = [];
         if (is_dir($scriptsDir)) {
-            foreach (glob($scriptsDir . '*.ps1') as $f) {
-                $ps1Files[] = [
-                    'name'     => basename($f),
+            foreach (glob($scriptsDir . '*.{ps1,sh}', GLOB_BRACE) as $f) {
+                $ext = pathinfo(basename($f), PATHINFO_EXTENSION);
+                $base = pathinfo(basename($f), PATHINFO_FILENAME);
+                
+                if (!isset($groupedFiles[$base])) {
+                    $groupedFiles[$base] = [
+                        'name' => $base,
+                        'ps1'  => null,
+                        'sh'   => null,
+                        'size' => 0,
+                        'modified' => ''
+                    ];
+                }
+                
+                $groupedFiles[$base][$ext] = [
+                    'filename' => basename($f),
                     'size'     => filesize($f),
-                    'modified' => date('d M Y H:i', filemtime($f)),
-                    'url'      => base_url('scripts/' . pathinfo(basename($f), PATHINFO_FILENAME) . '.ps1'),
+                    'url'      => base_url('scripts/' . $base . '.' . $ext),
                 ];
+                
+                $groupedFiles[$base]['size'] += filesize($f);
+                // Keep latest modified date
+                $mod = date('d M Y H:i', filemtime($f));
+                if ($mod > $groupedFiles[$base]['modified']) {
+                    $groupedFiles[$base]['modified'] = $mod;
+                }
             }
         }
 
         return view('admin/scripts/files', [
-            'ps1Files'   => $ps1Files,
+            'groupedFiles' => $groupedFiles,
             'title'      => 'Hosted Files',
             'activeMenu' => 'files',
         ]);
@@ -193,16 +212,17 @@ class Scripts extends BaseController
                 ->with('file_error', 'File tidak valid atau tidak dipilih.');
         }
 
-        // Hanya izinkan file .ps1
-        if (strtolower($file->getClientExtension()) !== 'ps1') {
+        // Hanya izinkan file .ps1 atau .sh
+        $ext = strtolower($file->getClientExtension());
+        if (!in_array($ext, ['ps1', 'sh'])) {
             return redirect()->to('/admin/scripts/files')
-                ->with('file_error', 'Hanya file .ps1 yang diizinkan.');
+                ->with('file_error', 'Hanya file .ps1 atau .sh yang diizinkan.');
         }
 
         // Sanitasi nama file: hanya huruf, angka, dash, underscore, titik
         $filename = preg_replace('/[^a-zA-Z0-9_\-.]/', '-', $file->getClientName());
-        if (!str_ends_with(strtolower($filename), '.ps1')) {
-            $filename .= '.ps1';
+        if (!preg_match('/\.(ps1|sh)$/i', $filename)) {
+            $filename .= '.' . $ext;
         }
 
         $scriptsDir = APPPATH . 'Scripts' . DIRECTORY_SEPARATOR;
@@ -239,10 +259,17 @@ class Scripts extends BaseController
         $slug     = mb_url_title(str_replace(['_'], '-', $basename), '-', true);
         $title    = ucwords(str_replace(['-', '_'], ' ', $basename));
 
+        $ext      = pathinfo($filename, PATHINFO_EXTENSION) ?: 'ps1';
         // URL publik file
-        $fileUrl    = base_url('scripts/' . $basename . '.ps1');
-        $command    = "irm {$fileUrl} | iex";
-        $commandCmd = "powershell -ExecutionPolicy Bypass -Command \"irm '{$fileUrl}' | iex\"";
+        $fileUrl    = base_url('scripts/' . $basename . '.' . $ext);
+        
+        if ($ext === 'sh') {
+            $command    = "curl -sL {$fileUrl} | bash";
+            $commandCmd = "";
+        } else {
+            $command    = "irm {$fileUrl} | iex";
+            $commandCmd = "powershell -ExecutionPolicy Bypass -Command \"irm '{$fileUrl}' | iex\"";
+        }
 
         // Cek apakah slug sudah ada
         $existing = $this->scriptModel->findBySlug($slug);
@@ -284,23 +311,33 @@ class Scripts extends BaseController
         }
     }
 
-    public function deleteFile($filename)
+    public function deleteFile($basename)
     {
         // Proteksi path traversal
-        if (str_contains($filename, '/') || str_contains($filename, '\\') || str_contains($filename, '..')) {
+        if (str_contains($basename, '/') || str_contains($basename, '\\') || str_contains($basename, '..')) {
             return redirect()->to('/admin/scripts/files')
                 ->with('file_error', 'Nama file tidak valid.');
         }
 
-        $filepath = APPPATH . 'Scripts' . DIRECTORY_SEPARATOR . $filename;
+        $basePath = APPPATH . 'Scripts' . DIRECTORY_SEPARATOR . $basename;
+        $deleted = false;
 
-        if (!file_exists($filepath)) {
-            return redirect()->to('/admin/scripts/files')
-                ->with('file_error', "File <strong>{$filename}</strong> tidak ditemukan.");
+        if (file_exists($basePath . '.ps1')) {
+            unlink($basePath . '.ps1');
+            $deleted = true;
+        }
+        
+        if (file_exists($basePath . '.sh')) {
+            unlink($basePath . '.sh');
+            $deleted = true;
         }
 
-        unlink($filepath);
+        if (!$deleted) {
+            return redirect()->to('/admin/scripts/files')
+                ->with('file_error', "Proyek <strong>{$basename}</strong> tidak ditemukan.");
+        }
+
         return redirect()->to('/admin/scripts/files')
-            ->with('file_msg', "File <strong>{$filename}</strong> berhasil dihapus.");
+            ->with('file_msg', "Proyek <strong>{$basename}</strong> berhasil dihapus.");
     }
 }

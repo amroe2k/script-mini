@@ -218,13 +218,16 @@
     const match = psCmd.match(/(?:irm|Invoke-RestMethod)\s+(['"]?)(https?:\/\/[^\s'"]+)\1/i);
     let linuxResult = '';
     if (match && match[2]) {
-      const url = match[2];
-      linuxResult = `curl -sL ${url} | pwsh`;
+      let url = match[2];
+      url = url.replace(/\.ps1$/i, '.sh');
+      linuxResult = `curl -sL ${url} | bash`;
     } else {
       // Fallback if not matching pattern
       const urlMatch = psCmd.match(/(https?:\/\/[^\s'"]+)/i);
       if (urlMatch && urlMatch[1]) {
-        linuxResult = `curl -sL ${urlMatch[1]} | pwsh`;
+        let url = urlMatch[1];
+        url = url.replace(/\.ps1$/i, '.sh');
+        linuxResult = `curl -sL ${url} | bash`;
       } else {
         window.Toast && window.Toast.fire({ icon: 'error', title: 'URL tidak ditemukan di perintah PowerShell!' });
         return;

@@ -59,12 +59,12 @@ try {
 # ── 4. Jalankan Patch sesuai OS ──────────────────────────────
 Write-Host "`n[>>] Menjalankan Patch..." -ForegroundColor Cyan
 if ($isWin) {
-    if (Test-Path "patch-windows.bat") {
-        Write-Host "     Menjalankan patch-windows.bat..." -ForegroundColor Gray
-        cmd.exe /c "patch-windows.bat"
-    } elseif (Test-Path "patch-windows.ps1") {
+    if (Test-Path "patch-windows.ps1") {
         Write-Host "     Menjalankan patch-windows.ps1..." -ForegroundColor Gray
-        .\patch-windows.ps1
+        & ".\patch-windows.ps1"
+    } elseif (Test-Path "patch-windows.bat") {
+        Write-Host "     Menjalankan patch-windows.bat..." -ForegroundColor Gray
+        & $env:ComSpec /c "patch-windows.bat"
     } else {
         Write-Host "[WARNING] File patch-windows.bat atau patch-windows.ps1 tidak ditemukan." -ForegroundColor Yellow
     }
