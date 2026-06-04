@@ -12,6 +12,25 @@
 
 #Requires -Version 5.1
 
+# ── Auto-elevasi: jalankan ulang sebagai Administrator jika belum ─────
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator
+)
+if (-not $isAdmin) {
+    Write-Host "`n[!!] Script harus dijalankan sebagai Administrator." -ForegroundColor Red
+    Write-Host "     Meminta elevasi UAC..." -ForegroundColor Yellow
+    $scriptPath = $MyInvocation.MyCommand.Path
+    if (-not $scriptPath) {
+        # Dijalankan via irm | iex — simpan sementara lalu re-launch
+        $scriptPath = "$env:TEMP\fix-synchronizer-elevated.ps1"
+        $MyInvocation.MyCommand.ScriptBlock | Set-Content $scriptPath -Encoding UTF8
+    }
+    Start-Process -FilePath 'powershell.exe' \
+        -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" \
+        -Verb RunAs
+    exit
+}
+
 # ── Konfigurasi ──────────────────────────────────────────────
 $GDriveFileId = "1O_Lj8OMOsCR9v_dJKG4UY8HQFb05kFD0"
 $GDriveBase   = "https://drive.google.com/uc?export=download"
@@ -49,7 +68,6 @@ try {
 
 # ── Langkah 2: Download dataweb.zip ───────────────────────────
 Write-Step "Mengunduh dataweb.zip dari server..."
-Write-Info "URL : $ZipUrl"
 Write-Info "Ke  : $ZipFile"
 
 try {
@@ -59,38 +77,53 @@ try {
     $downloadUrl = "https://drive.usercontent.google.com/download?id=$GDriveFileId&export=download&authuser=0&confirm=t"
     Write-Info "Menghubungi Google Drive..."
 
-    # ── Download streaming dengan progress bar ─────────────────
-    $reqDl              = [System.Net.HttpWebRequest]::Create($downloadUrl)
-    $reqDl.Method       = "GET"
-    $reqDl.Timeout      = 600000   # 10 menit
-    $reqDl.UserAgent    = "Mozilla/5.0"
+    # ── Download streaming dengan progress inline ────────────────
+    $reqDl                   = [System.Net.HttpWebRequest]::Create($downloadUrl)
+    $reqDl.Method            = 'GET'
+    $reqDl.Timeout           = 600000      # 10 menit
+    $reqDl.UserAgent         = 'Mozilla/5.0'
     $reqDl.AllowAutoRedirect = $true
 
     $response   = $reqDl.GetResponse()
     $totalBytes = $response.ContentLength
-    $totalMB    = [math]::Round($totalBytes / 1MB, 1)
+    $totalMB    = if ($totalBytes -gt 0) { [math]::Round($totalBytes / 1MB, 1) } else { '?' }
     $readStream = $response.GetResponseStream()
     $fileStream = [System.IO.File]::Create($ZipFile)
-    $buffer     = New-Object byte[] 65536   # 64KB per chunk
+    $buffer     = New-Object byte[] 65536   # 64 KB per chunk
     $totalRead  = 0
     $stopwatch  = [System.Diagnostics.Stopwatch]::StartNew()
+    $lastPct    = -1
+
+    # Tulis baris awal progress
+    Write-Host '     ' -NoNewline
 
     do {
         $bytesRead = $readStream.Read($buffer, 0, $buffer.Length)
         if ($bytesRead -gt 0) {
             $fileStream.Write($buffer, 0, $bytesRead)
             $totalRead += $bytesRead
-            $readMB    = [math]::Round($totalRead / 1MB, 1)
-            $pct       = if ($totalBytes -gt 0) { [int]($totalRead * 100 / $totalBytes) } else { -1 }
-            $elapsed   = $stopwatch.Elapsed.TotalSeconds
-            $speedKB   = if ($elapsed -gt 0) { [math]::Round($totalRead / 1KB / $elapsed, 0) } else { 0 }
-            $status    = if ($totalBytes -gt 0) {
-                "$readMB MB / $totalMB MB  •  ${speedKB} KB/s"
-            } else {
-                "$readMB MB diunduh  •  ${speedKB} KB/s"
+
+            $readMB  = [math]::Round($totalRead / 1MB, 1)
+            $elapsed = $stopwatch.Elapsed.TotalSeconds
+            $speedKB = if ($elapsed -gt 0) { [math]::Round($totalRead / 1KB / $elapsed, 0) } else { 0 }
+
+            $pct = if ($totalBytes -gt 0) { [int]($totalRead * 100 / $totalBytes) } else { -1 }
+
+            # Hanya update jika persentase berubah (kurangi flicker)
+            if ($pct -ne $lastPct) {
+                $lastPct = $pct
+
+                # Buat visual bar 20 karakter
+                if ($pct -ge 0) {
+                    $filled = [int]($pct / 5)          # 0-20
+                    $bar    = ('#' * $filled).PadRight(20, '.')
+                    $pctStr = "$pct%".PadLeft(4)
+                    $line   = "`r     [$bar] $pctStr  $readMB MB / $totalMB MB  ${speedKB} KB/s  "
+                } else {
+                    $line   = "`r     [Mengunduh...]  $readMB MB  ${speedKB} KB/s  "
+                }
+                Write-Host $line -NoNewline -ForegroundColor Cyan
             }
-            Write-Progress -Activity "Mengunduh dataweb.zip dari Google Drive..." `
-                           -Status $status -PercentComplete $pct
         }
     } while ($bytesRead -gt 0)
 
@@ -98,22 +131,24 @@ try {
     $readStream.Close()
     $response.Close()
     $stopwatch.Stop()
-    Write-Progress -Activity "Mengunduh dataweb.zip dari Google Drive..." -Completed
+
+    # Baris baru setelah progress selesai
+    Write-Host ''
 
     # Validasi: pastikan yang diunduh adalah ZIP, bukan HTML
     $actualSizeBytes = (Get-Item $ZipFile).Length
     if ($actualSizeBytes -lt 10KB) {
         Remove-Item $ZipFile -Force -ErrorAction SilentlyContinue
-        Write-Fail "File yang diunduh terlalu kecil ($actualSizeBytes bytes) — kemungkinan bukan file ZIP valid. Pastikan file di Google Drive bersifat publik."
+        Write-Fail "File yang diunduh terlalu kecil ($actualSizeBytes bytes) — kemungkinan bukan file ZIP valid."
     }
 
     $sizeMB  = [math]::Round($actualSizeBytes / 1MB, 2)
     $elapsed = [math]::Round($stopwatch.Elapsed.TotalSeconds, 1)
     Write-Ok "dataweb.zip berhasil diunduh ($sizeMB MB dalam ${elapsed}s)"
 } catch {
-    if ($fileStream) { $fileStream.Close() }
-    if ($readStream) { $readStream.Close() }
-    Write-Progress -Activity "Mengunduh dataweb.zip dari Google Drive..." -Completed -ErrorAction SilentlyContinue
+    if ($fileStream) { try { $fileStream.Close() } catch {} }
+    if ($readStream) { try { $readStream.Close() } catch {} }
+    Write-Host ''   # pastikan baris baru setelah progress
     Write-Fail "Gagal mengunduh dari Google Drive: $_"
 }
 
