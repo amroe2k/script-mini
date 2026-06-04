@@ -233,6 +233,12 @@ if ($step3_desc === '') $step3_desc = 'Tempel perintah yang disalin ke terminal 
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               CMD
             </button>
+            <?php if (!empty($script['enable_linux'])): ?>
+            <button class="shell-tab" data-shell="bash">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              Linux / Bash
+            </button>
+            <?php endif; ?>
           </div>
 
           <div class="terminal-mockup">
@@ -245,7 +251,10 @@ if ($step3_desc === '') $step3_desc = 'Tempel perintah yang disalin ke terminal 
               <div id="terminalTitle" class="terminal-title">Administrator: Windows PowerShell</div>
               <button id="copyBtn" class="btn-copy"
                 data-code-ps="<?= esc($script['command']) ?>"
-                data-code-cmd="<?= esc($commandCmd) ?>">
+                data-code-cmd="<?= esc($commandCmd) ?>"
+                <?php if (!empty($script['enable_linux'])): ?>
+                data-code-bash="<?= esc($script['command_linux']) ?>"
+                <?php endif; ?>>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 <span>Salin</span>
               </button>
@@ -289,8 +298,9 @@ if ($step3_desc === '') $step3_desc = 'Tempel perintah yang disalin ke terminal 
   const btn           = document.getElementById('copyBtn');
 
   const shellConfig = {
-    ps:  { title: 'Administrator: Windows PowerShell', prompt: 'PS C:\\> ', attr: 'data-code-ps' },
-    cmd: { title: 'Command Prompt',                    prompt: 'C:\\> ',    attr: 'data-code-cmd' },
+    ps:   { title: 'Administrator: Windows PowerShell', prompt: 'PS C:\\> ', attr: 'data-code-ps' },
+    cmd:  { title: 'Command Prompt',                    prompt: 'C:\\> ',    attr: 'data-code-cmd' },
+    bash: { title: 'Terminal / Bash',                   prompt: 'root@server:~# ', attr: 'data-code-bash' },
   };
 
   let activeShell = 'ps';
@@ -340,7 +350,7 @@ if ($step3_desc === '') $step3_desc = 'Tempel perintah yang disalin ke terminal 
   btn?.addEventListener('click', () => {
     const attr = shellConfig[activeShell]?.attr || 'data-code-ps';
     const code = btn.getAttribute(attr) || '';
-    const shellLabel = activeShell === 'ps' ? 'PowerShell' : 'CMD';
+    const shellLabel = activeShell === 'ps' ? 'PowerShell' : (activeShell === 'cmd' ? 'CMD' : 'Linux/Bash');
 
     navigator.clipboard.writeText(code).then(() => {
       const original = btn.innerHTML;

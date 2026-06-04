@@ -68,6 +68,8 @@ class Scripts extends BaseController
         $step1_desc  = $this->request->getPost('step1_desc') ?? '';
         $step2_desc  = $this->request->getPost('step2_desc') ?? '';
         $step3_desc  = $this->request->getPost('step3_desc') ?? '';
+        $enable_linux = $this->request->getPost('enable_linux') ? 1 : 0;
+        $command_linux = $this->request->getPost('command_linux') ?? '';
 
         // Simple UUID v4 generator
         $id = sprintf(
@@ -93,6 +95,8 @@ class Scripts extends BaseController
             'step1_desc'  => $step1_desc ?: null,
             'step2_desc'  => $step2_desc ?: null,
             'step3_desc'  => $step3_desc ?: null,
+            'enable_linux'=> $enable_linux,
+            'command_linux'=> $command_linux,
         ];
 
         try {
@@ -138,6 +142,8 @@ class Scripts extends BaseController
         $step1_desc  = $this->request->getPost('step1_desc') ?? '';
         $step2_desc  = $this->request->getPost('step2_desc') ?? '';
         $step3_desc  = $this->request->getPost('step3_desc') ?? '';
+        $enable_linux = $this->request->getPost('enable_linux') ? 1 : 0;
+        $command_linux = $this->request->getPost('command_linux') ?? '';
 
         $data = [
             'slug'        => $slug,
@@ -152,6 +158,8 @@ class Scripts extends BaseController
             'step1_desc'  => $step1_desc ?: null,
             'step2_desc'  => $step2_desc ?: null,
             'step3_desc'  => $step3_desc ?: null,
+            'enable_linux'=> $enable_linux,
+            'command_linux'=> $command_linux,
         ];
 
         try {

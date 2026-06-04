@@ -16,6 +16,7 @@ class ScriptModel extends Model
         'id', 'slug', 'title', 'description', 'tag',
         'icon', 'icon_color', 'command', 'command_cmd', 'sort_order',
         'step1_desc', 'step2_desc', 'step3_desc',
+        'enable_linux', 'command_linux'
     ];
 
     protected $useTimestamps  = true;

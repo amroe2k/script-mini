@@ -98,14 +98,16 @@
     <?php foreach ($ps1Files as $f):
       $cmdPs  = "irm {$f['url']} | iex";
       $cmdCmd = "powershell -ExecutionPolicy Bypass -Command \"irm '{$f['url']}' | iex\"";
+      $cmdLinux = "curl -sL {$f['url']} | pwsh";
     ?>
       <div class="file-card">
+        <?php $cardId = md5($f['url']); ?>
         <!-- Header: icon + nama + meta -->
         <div class="file-card-top">
           <div class="file-card-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="10 13 8 15 10 17"/><polyline points="14 13 16 15 14 17"/></svg>
           </div>
-          <div class="file-card-meta">
+          <div class="file-card-meta" style="flex: 1;">
             <div class="file-card-name"><?= esc($f['name']) ?></div>
             <div class="file-card-info">
               <span><?= number_format($f['size'] / 1024, 1) ?> KB</span>
@@ -113,6 +115,13 @@
               <span><?= esc($f['modified']) ?></span>
             </div>
           </div>
+          <label class="linux-toggle-wrap-sm" title="Opsi Linux">
+            <span class="linux-toggle-label-sm">Linux</span>
+            <div class="toggle-switch-sm">
+              <input type="checkbox" onchange="toggleCardLinux(this, '<?= $cardId ?>')">
+              <span class="slider-sm"></span>
+            </div>
+          </label>
         </div>
 
         <!-- URL -->
@@ -138,6 +147,15 @@
           <span class="cmd-badge badge-cmd">CMD</span>
           <code class="cmd-text"><?= esc($cmdCmd) ?></code>
           <button class="btn-copy-cmd" data-copy="<?= esc($cmdCmd) ?>" title="Salin CMD Command">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+
+        <!-- Linux install command -->
+        <div class="cmd-row cmd-row-linux" id="linux-cmd-<?= $cardId ?>" style="display: none;">
+          <span class="cmd-badge badge-linux">LINUX</span>
+          <code class="cmd-text"><?= esc($cmdLinux) ?></code>
+          <button class="btn-copy-cmd" data-copy="<?= esc($cmdLinux) ?>" title="Salin Linux Command">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>
         </div>
@@ -387,7 +405,31 @@
   }
   .badge-url  { background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(148,163,184,0.15); }
   .badge-ps   { background: rgba(59,130,246,0.12); color: #3b82f6;  border: 1px solid rgba(59,130,246,0.2); }
+  .cmd-row-linux { border-left: 3px solid rgba(16,185,129,0.6); }
   .badge-cmd  { background: rgba(251,146,60,0.12);  color: #fb923c;  border: 1px solid rgba(251,146,60,0.2); }
+  .badge-linux { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
+
+  /* ── Toggle Switch Small ── */
+  .linux-toggle-wrap-sm {
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+    background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.15);
+    padding: 3px 8px; border-radius: 12px;
+    transition: all 0.2s;
+  }
+  .linux-toggle-wrap-sm:hover { background: rgba(16,185,129,0.1); }
+  .linux-toggle-label-sm { font-size: 0.65rem; font-weight: 700; color: #10b981; text-transform: uppercase; }
+  .toggle-switch-sm { position: relative; width: 28px; height: 14px; }
+  .toggle-switch-sm input { opacity: 0; width: 0; height: 0; }
+  .toggle-switch-sm .slider-sm {
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(148,163,184,0.3); transition: .3s; border-radius: 14px;
+  }
+  .toggle-switch-sm .slider-sm:before {
+    position: absolute; content: ""; height: 10px; width: 10px; left: 2px; bottom: 2px;
+    background-color: white; transition: .3s; border-radius: 50%;
+  }
+  .toggle-switch-sm input:checked + .slider-sm { background-color: #10b981; }
+  .toggle-switch-sm input:checked + .slider-sm:before { transform: translateX(14px); }
 
   .cmd-text {
     font-family: var(--font-mono); font-size: 0.73rem;
@@ -453,6 +495,9 @@
   [data-theme="light"] .badge-url { background: rgba(100,116,139,0.08); }
   [data-theme="light"] .badge-ps  { background: rgba(37,99,235,0.07); color: #2563eb; border-color: rgba(37,99,235,0.15); }
   [data-theme="light"] .badge-cmd { background: rgba(234,88,12,0.07);  color: #ea580c;  border-color: rgba(234,88,12,0.15); }
+  [data-theme="light"] .badge-linux { background: rgba(5,150,105,0.07); color: #059669; border-color: rgba(5,150,105,0.15); }
+  [data-theme="light"] .linux-toggle-wrap-sm { background: rgba(5,150,105,0.05); border-color: rgba(5,150,105,0.15); }
+  [data-theme="light"] .linux-toggle-label-sm { color: #059669; }
   [data-theme="light"] .fsc-blue   { background: rgba(37,99,235,0.07); color: #2563eb; }
   [data-theme="light"] .fsc-purple { background: rgba(79,70,229,0.07); color: #4f46e5; }
   [data-theme="light"] .fsc-green  { background: rgba(5,150,105,0.07); color: #059669; }
@@ -659,6 +704,13 @@
 </style>
 
 <script>
+  function toggleCardLinux(checkbox, cardId) {
+    const el = document.getElementById('linux-cmd-' + cardId);
+    if (el) {
+      el.style.display = checkbox.checked ? 'flex' : 'none';
+    }
+  }
+
   function toggleUpload() {
     document.getElementById('upload-panel').classList.toggle('open');
   }
