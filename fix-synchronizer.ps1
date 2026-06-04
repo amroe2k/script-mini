@@ -133,23 +133,55 @@ if (-not (Test-Path "$dbDir\database.sqlite")) {
 
 # ── Langkah 4: Stop service sebelum ekstrak ───────────────────
 Write-Step "Menghentikan service: $SvcName"
-$svcFound   = $false
+$svcFound      = $false
 $svcWasRunning = $false
-try {
-    $svc = Get-Service -Name $SvcName -ErrorAction Stop
+$svcActualName = $SvcName   # nama aktual yang berhasil ditemukan
+
+# Coba temukan service — pertama dengan nama tepat, lalu wildcard
+$svc = $null
+try { $svc = Get-Service -Name $SvcName -ErrorAction Stop } catch {}
+if (-not $svc) {
+    # Wildcard: cari nama yang mengandung kata kunci utama
+    $keyword = ($SvcName -split 'Synchronizer')[0] + 'Synchronizer'
+    $found   = @(Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*Synchronizer*" -or $_.DisplayName -like "*Synchronizer*" })
+    if ($found.Count -eq 1) {
+        $svc           = $found[0]
+        $svcActualName = $svc.Name
+        Write-Warn "Nama service berbeda — ditemukan: '$svcActualName'  (dicari: '$SvcName')"
+    } elseif ($found.Count -gt 1) {
+        # Pilih yang paling mirip
+        $svc           = $found | Sort-Object { [Math]::Abs($_.Name.Length - $SvcName.Length) } | Select-Object -First 1
+        $svcActualName = $svc.Name
+        Write-Warn "Beberapa service Synchronizer ditemukan, menggunakan: '$svcActualName'"
+    }
+}
+
+if ($svc) {
     $svcFound = $true
+    Write-Info "Service ditemukan: '$svcActualName' (Status: $($svc.Status))"
     if ($svc.Status -eq 'Running') {
         $svcWasRunning = $true
-        Stop-Service -Name $SvcName -Force -ErrorAction Stop
-        $svc.WaitForStatus('Stopped', (New-TimeSpan -Seconds 30))
-        Write-Ok "Service '$SvcName' berhasil dihentikan."
+        try {
+            Stop-Service -Name $svcActualName -Force -ErrorAction Stop
+            $svc.WaitForStatus('Stopped', (New-TimeSpan -Seconds 30))
+            Write-Ok "Service '$svcActualName' berhasil dihentikan."
+        } catch [System.ServiceProcess.TimeoutException] {
+            Write-Warn "Service tidak berhenti dalam 30 detik — melanjutkan paksa..."
+        } catch {
+            # Fallback: gunakan net stop
+            Write-Info "Mencoba net stop sebagai fallback..."
+            $netResult = & net stop "$svcActualName" 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok "Service '$svcActualName' dihentikan via net stop."
+            } else {
+                Write-Warn "Gagal menghentikan service: $netResult"
+            }
+        }
     } else {
-        Write-Info "Service '$SvcName' sudah berhenti (status: $($svc.Status))."
+        Write-Info "Service '$svcActualName' sudah berhenti (status: $($svc.Status))."
     }
-} catch [System.ServiceProcess.TimeoutException] {
-    Write-Warn "Service tidak berhenti dalam 30 detik — melanjutkan paksa..."
-} catch {
-    Write-Warn "Service '$SvcName' tidak ditemukan atau tidak bisa dihentikan — melanjutkan..."
+} else {
+    Write-Warn "Service '$SvcName' tidak ditemukan — service stop dilewati."
 }
 
 # ── Langkah 5: Ekstrak dataweb.zip ────────────────────────────
@@ -261,18 +293,26 @@ if (-not $phpExe) {
 }
 
 # ── Langkah 7: Start kembali service ─────────────────────────
-Write-Step "Menjalankan kembali service: $SvcName"
+Write-Step "Menjalankan kembali service: $svcActualName"
 if ($svcFound) {
     try {
-        Start-Service -Name $SvcName -ErrorAction Stop
-        $svc2 = Get-Service -Name $SvcName
+        Start-Service -Name $svcActualName -ErrorAction Stop
+        $svc2 = Get-Service -Name $svcActualName
         $svc2.WaitForStatus('Running', (New-TimeSpan -Seconds 30))
-        Write-Ok "Service '$SvcName' berhasil dijalankan kembali."
+        Write-Ok "Service '$svcActualName' berhasil dijalankan kembali."
     } catch {
-        Write-Warn "Gagal menjalankan '$SvcName' — jalankan manual jika diperlukan."
+        # Fallback: gunakan net start
+        Write-Info "Mencoba net start sebagai fallback..."
+        $netResult = & net start "$svcActualName" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "Service '$svcActualName' dijalankan via net start."
+        } else {
+            Write-Warn "Gagal menjalankan '$svcActualName': $netResult"
+            Write-Info "Coba jalankan manual: net start \"$svcActualName\""
+        }
     }
 } else {
-    Write-Info "Service '$SvcName' tidak ditemukan di sistem ini — dilewati."
+    Write-Info "Service tidak ditemukan di sistem ini — dilewati."
 }
 
 # ── Langkah 8: Bersihkan file ZIP sementara ──────────────────
